@@ -42,7 +42,10 @@ const STYLES = [
       "magical light, bright saturated colors, dreamlike storybook wonder.",
     // Subjects that appear in this style's reference images and must not
     // leak into the output.
-    forbid: "grey-and-white cats",
+    forbid:
+      "grey-and-white cats, a woman with long dark hair in a pink-and-blue " +
+      "sweater, a bearded man in a black t-shirt, and a woman with long " +
+      "dark wavy hair",
   },
   {
     id: "classic",
@@ -127,44 +130,45 @@ async function generateStyledImage(style, imageContent) {
   const n = imageContent.length;
   let content;
   if (refs.length) {
-    // Interleave text labels so the model can't confuse the subject photos
-    // with the style examples.
+    // Style references go FIRST and the user's photos go LAST (immediately
+    // before the final instruction) — the model treats the most recent
+    // images as the content to work with, which keeps reference subjects
+    // from leaking into the output.
     content = [
       {
         type: "text",
         text:
-          style.prompt +
-          ` Here are the ${n} photos to combine — every subject in the ` +
-          `final image must come from these ${n} photos:`,
-      },
-      ...imageContent,
-      {
-        type: "text",
-        text:
-          `Next are ${refs.length} STYLE REFERENCE image(s). Use ONLY the ` +
-          "STYLE of these reference images: color palette, backgrounds, " +
-          "decorative elements, composition style, and mood. DO NOT USE ANY " +
-          "of the human faces or cat/pet photos that appear in the " +
-          "reference images. EXCLUSIVELY use the faces and/or pets from the " +
-          `user's ${n} input photos above — no face, person, cat, or pet ` +
-          "from the reference images may appear in the output:",
+          `First, here are ${refs.length} STYLE REFERENCE image(s). These ` +
+          "are a style guide ONLY: take the color palette, backgrounds, " +
+          "decorative elements, composition style, and mood from them. The " +
+          "people, faces, cats, and pets shown in these references are NOT " +
+          "part of your task and must NEVER appear in your output:",
       },
       ...refs,
       {
         type: "text",
         text:
-          "Now create the combined image. Every person, animal, and subject " +
-          `in the final image must come from the first ${n} photos ONLY — ` +
-          "nothing from the reference images may appear. If the references " +
-          "use repeated cut-out photos of a subject as decorative collage " +
-          "elements, recreate that same collage effect but build the " +
-          `cut-outs from subjects in the first ${n} photos instead. Copy ` +
-          "the references' backgrounds, colors, sparkle, and layout — " +
-          "never their subjects." +
+          `Now, here are the ${n} photos of the ACTUAL SUBJECTS. Every ` +
+          "person, face, and pet in your output must come EXCLUSIVELY from " +
+          `these ${n} photos:`,
+      },
+      ...imageContent,
+      {
+        type: "text",
+        text:
+          style.prompt +
+          ` Use ONLY the subjects from the ${n} photos directly above — ` +
+          "render their faces faithfully and recognizably. DO NOT USE ANY " +
+          "human face or pet from the style reference images. If the " +
+          "references use repeated cut-out photos of a subject as " +
+          "decorative collage elements, recreate that same collage effect " +
+          `but build the cut-outs from the ${n} subject photos instead. ` +
+          "Copy the references' backgrounds, colors, sparkle, and layout — " +
+          "never their people or pets." +
           (style.forbid
             ? ` STRICT RULE: the reference images contain ${style.forbid}. ` +
-              `Absolutely NO ${style.forbid} may appear anywhere in the ` +
-              `output unless they are also present in the first ${n} photos.`
+              `Absolutely NONE of these may appear anywhere in the output ` +
+              `unless they are also present in the ${n} subject photos.`
             : ""),
       },
     ];
