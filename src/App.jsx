@@ -40,9 +40,11 @@ const Slots = styled.div`
 const Slot = styled.button`
   position: relative;
   aspect-ratio: 1;
-  border: 2px dashed ${(p) => (p.$filled ? "transparent" : "#3f3f46")};
+  border: 2px dashed
+    ${(p) => (p.$dragging ? "#6366f1" : p.$filled ? "transparent" : "#3f3f46")};
   border-radius: 16px;
-  background: ${(p) => (p.$filled ? "#000" : "#1a1a1f")};
+  background: ${(p) =>
+    p.$dragging ? "#26263a" : p.$filled ? "#000" : "#1a1a1f"};
   color: #71717a;
   font-size: 14px;
   cursor: pointer;
@@ -162,17 +164,34 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
   const inputs = [useRef(null), useRef(null), useRef(null)];
 
-  const pick = (i) => (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const setImage = (i, file) => {
+    if (!file || !file.type.startsWith("image/")) return;
     setImages((prev) => {
       const next = [...prev];
       next[i] = { file, url: URL.createObjectURL(file) };
       return next;
     });
     setError(null);
+  };
+
+  const pick = (i) => (e) => {
+    setImage(i, e.target.files?.[0]);
+  };
+
+  const onDragOver = (i) => (e) => {
+    e.preventDefault();
+    setDragIndex(i);
+  };
+
+  const onDragLeave = () => setDragIndex(null);
+
+  const onDrop = (i) => (e) => {
+    e.preventDefault();
+    setDragIndex(null);
+    setImage(i, e.dataTransfer.files?.[0]);
   };
 
   const allFilled = images.every(Boolean);
@@ -208,10 +227,18 @@ function App() {
           <Slot
             key={i}
             $filled={!!img}
+            $dragging={dragIndex === i}
             onClick={() => inputs[i].current?.click()}
+            onDragOver={onDragOver(i)}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop(i)}
           >
             <SlotNum>{i + 1}</SlotNum>
-            {img ? <img src={img.url} alt={`Upload ${i + 1}`} /> : "Tap to add photo"}
+            {img ? (
+              <img src={img.url} alt={`Upload ${i + 1}`} />
+            ) : (
+              "Tap or drop a photo"
+            )}
             <input
               ref={inputs[i]}
               type="file"
