@@ -33,6 +33,9 @@ const STYLES = [
       BASE_PROMPT +
       "Make it whimsical and fantastical: sparkling fairy dust, glowing " +
       "magical light, bright saturated colors, dreamlike storybook wonder.",
+    // Subjects that appear in this style's reference images and must not
+    // leak into the output.
+    forbid: "grey-and-white cats",
   },
   {
     id: "classic",
@@ -130,12 +133,30 @@ async function generateStyledImage(style, imageContent) {
       {
         type: "text",
         text:
-          `Next are ${refs.length} STYLE REFERENCE image(s). Match their ` +
-          "aesthetic, composition style, color palette, and overall look, " +
-          "but do NOT copy their content — no people, animals, or objects " +
-          "from these references may appear in the final image:",
+          `Next are ${refs.length} STYLE REFERENCE image(s). Use ONLY their ` +
+          "aesthetic: color palette, backgrounds, decorative elements, " +
+          "composition style, and mood. CRITICAL: the people, cats, animals, " +
+          "and objects shown in these reference images are NOT part of the " +
+          "output. Do not include any subject from the references:",
       },
       ...refs,
+      {
+        type: "text",
+        text:
+          "Now create the combined image. Every person, animal, and subject " +
+          "in the final image must come from the first 3 photos ONLY — " +
+          "nothing from the reference images may appear. If the references " +
+          "use repeated cut-out photos of a subject as decorative collage " +
+          "elements, recreate that same collage effect but build the " +
+          "cut-outs from subjects in the first 3 photos instead. Copy the " +
+          "references' backgrounds, colors, sparkle, and layout — never " +
+          "their subjects." +
+          (style.forbid
+            ? ` STRICT RULE: the reference images contain ${style.forbid}. ` +
+              `Absolutely NO ${style.forbid} may appear anywhere in the ` +
+              "output unless they are also present in the first 3 photos."
+            : ""),
+      },
     ];
   } else {
     content = [{ type: "text", text: style.prompt }, ...imageContent];
