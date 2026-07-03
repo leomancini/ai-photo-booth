@@ -254,10 +254,11 @@ function App() {
     setImage(i, e.dataTransfer.files?.[0]);
   };
 
-  const allFilled = images.every(Boolean);
+  const filled = images.filter(Boolean);
+  const canCombine = filled.length >= 2;
 
   const combine = async () => {
-    if (!allFilled || loading || !styles.length) return;
+    if (!canCombine || loading || !styles.length) return;
     setLoading(true);
     setError(null);
     setResults(null);
@@ -266,7 +267,7 @@ function App() {
     let uploadId;
     try {
       const form = new FormData();
-      images.forEach((img, i) => form.append("images", img.file, `photo-${i}.jpg`));
+      filled.forEach((img, i) => form.append("images", img.file, `photo-${i}.jpg`));
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
@@ -312,7 +313,8 @@ function App() {
     <Page>
       <Title>AI Photo Booth</Title>
       <Subtitle>
-        Upload three photos — get them combined in three different styles.
+        Upload two or three photos — get them combined in three different
+        styles.
       </Subtitle>
 
       <Slots>
@@ -329,6 +331,8 @@ function App() {
             <SlotNum>{i + 1}</SlotNum>
             {img ? (
               <img src={img.url} alt={`Upload ${i + 1}`} />
+            ) : i === 2 ? (
+              "Tap or drop a photo (optional)"
             ) : (
               "Tap or drop a photo"
             )}
@@ -343,7 +347,7 @@ function App() {
         ))}
       </Slots>
 
-      <Button disabled={!allFilled || loading} onClick={combine}>
+      <Button disabled={!canCombine || loading} onClick={combine}>
         {loading ? "Creating 3 styles…" : "Combine Photos"}
       </Button>
 

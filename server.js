@@ -21,7 +21,7 @@ const POE_MODEL = "Nano-Banana-2";
 // The styles generated for each set of uploads. Each entry produces one
 // combined image; edit the prompts to change how the images get combined.
 const BASE_PROMPT =
-  "Combine these three images into a single, cohesive image. Blend the " +
+  "Combine these images into a single, cohesive image. Blend the " +
   "subjects and scenes together naturally into one unified composition. " +
   "Return a single image in portrait orientation with a 2:3 aspect ratio " +
   "(like a 4x6 photo print, taller than wide). ";
@@ -118,6 +118,7 @@ app.use(express.static(join(__dirname, "dist")));
 // ---------------------------------------------------------------------------
 async function generateStyledImage(style, imageContent) {
   const refs = style.refs || [];
+  const n = imageContent.length;
   let content;
   if (refs.length) {
     // Interleave text labels so the model can't confuse the subject photos
@@ -127,8 +128,8 @@ async function generateStyledImage(style, imageContent) {
         type: "text",
         text:
           style.prompt +
-          " Here are the 3 photos to combine — every subject in the final " +
-          "image must come from these 3 photos:",
+          ` Here are the ${n} photos to combine — every subject in the ` +
+          `final image must come from these ${n} photos:`,
       },
       ...imageContent,
       {
@@ -139,25 +140,25 @@ async function generateStyledImage(style, imageContent) {
           "decorative elements, composition style, and mood. DO NOT USE ANY " +
           "of the human faces or cat/pet photos that appear in the " +
           "reference images. EXCLUSIVELY use the faces and/or pets from the " +
-          "user's 3 input photos above — no face, person, cat, or pet from " +
-          "the reference images may appear in the output:",
+          `user's ${n} input photos above — no face, person, cat, or pet ` +
+          "from the reference images may appear in the output:",
       },
       ...refs,
       {
         type: "text",
         text:
           "Now create the combined image. Every person, animal, and subject " +
-          "in the final image must come from the first 3 photos ONLY — " +
+          `in the final image must come from the first ${n} photos ONLY — ` +
           "nothing from the reference images may appear. If the references " +
           "use repeated cut-out photos of a subject as decorative collage " +
           "elements, recreate that same collage effect but build the " +
-          "cut-outs from subjects in the first 3 photos instead. Copy the " +
-          "references' backgrounds, colors, sparkle, and layout — never " +
-          "their subjects." +
+          `cut-outs from subjects in the first ${n} photos instead. Copy ` +
+          "the references' backgrounds, colors, sparkle, and layout — " +
+          "never their subjects." +
           (style.forbid
             ? ` STRICT RULE: the reference images contain ${style.forbid}. ` +
               `Absolutely NO ${style.forbid} may appear anywhere in the ` +
-              "output unless they are also present in the first 3 photos."
+              `output unless they are also present in the first ${n} photos.`
             : ""),
       },
     ];
@@ -218,11 +219,11 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
-// Upload the 3 photos once; returns an ID the style requests reuse.
+// Upload the photos once; returns an ID the style requests reuse.
 app.post("/api/upload", upload.array("images", 3), async (req, res) => {
   const files = req.files || [];
-  if (files.length !== 3) {
-    return res.status(400).json({ error: "Please upload exactly three images" });
+  if (files.length < 2 || files.length > 3) {
+    return res.status(400).json({ error: "Please upload 2 or 3 images" });
   }
 
   try {
