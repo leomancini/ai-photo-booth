@@ -23,10 +23,11 @@ const POE_MODEL = "Nano-Banana-2";
 const BASE_PROMPT =
   "Combine these images into a single, cohesive image. Blend the " +
   "subjects and scenes together naturally into one unified composition. " +
-  "IMPORTANT: render every person's face faithfully — each face must stay " +
-  "accurate, recognizable, and true to how it appears in the input photos. " +
-  "Do not alter facial features, identity, or likeness, even when applying " +
-  "a strong artistic style. " +
+  "IMPORTANT: DO NOT change the faces from the user input photos! Render " +
+  "every person's face faithfully — each face must stay accurate, " +
+  "recognizable, and true to how it appears in the input photos. Do not " +
+  "alter facial features, identity, or likeness, even when applying a " +
+  "strong artistic style. " +
   "Return a single image in portrait orientation with a 2:3 aspect ratio " +
   "(like a 4x6 photo print, taller than wide). NEVER add a border, frame, " +
   "mat, or margin of any kind — the artwork must always be full bleed, " +
@@ -161,7 +162,9 @@ async function generateStyledImage(style, imageContent) {
         text:
           style.prompt +
           ` Use ONLY the subjects from the ${n} photos directly above — ` +
-          "render their faces faithfully and recognizably. DO NOT USE ANY " +
+          "DO NOT change their faces! Render their faces faithfully, " +
+          "recognizably, and exactly as they appear in those photos. DO " +
+          "NOT USE ANY " +
           "human face or pet from the style reference images. If the " +
           "references use repeated cut-out photos of a subject as " +
           "decorative collage elements, recreate that same collage effect " +
