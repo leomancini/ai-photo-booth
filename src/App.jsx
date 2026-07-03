@@ -99,10 +99,21 @@ const ErrorMsg = styled.p`
   margin-top: 16px;
 `;
 
-const ResultWrap = styled.div`
+const Results = styled.div`
   margin-top: 40px;
   width: 100%;
-  max-width: 720px;
+  max-width: 1080px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+    max-width: 720px;
+  }
+`;
+
+const ResultCard = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -113,8 +124,30 @@ const ResultWrap = styled.div`
   }
 `;
 
+const ResultLabel = styled.h3`
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #d4d4d8;
+`;
+
+const ResultError = styled.div`
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #1a1a1f;
+  color: #f87171;
+  font-size: 14px;
+  padding: 16px;
+  box-sizing: border-box;
+  text-align: center;
+`;
+
 const DownloadLink = styled.a`
-  margin-top: 16px;
+  margin-top: 12px;
   color: #a5b4fc;
   font-size: 14px;
   text-decoration: none;
@@ -127,7 +160,7 @@ const DownloadLink = styled.a`
 function App() {
   const [images, setImages] = useState([null, null, null]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const inputs = [useRef(null), useRef(null), useRef(null)];
 
@@ -148,14 +181,14 @@ function App() {
     if (!allFilled || loading) return;
     setLoading(true);
     setError(null);
-    setResult(null);
+    setResults(null);
     try {
       const form = new FormData();
       images.forEach((img) => form.append("images", img.file));
       const res = await fetch("/api/combine", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong");
-      setResult(data.image);
+      setResults(data.results);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -166,7 +199,9 @@ function App() {
   return (
     <Page>
       <Title>AI Photo Booth</Title>
-      <Subtitle>Upload three photos and combine them into one.</Subtitle>
+      <Subtitle>
+        Upload three photos — get them combined in three different styles.
+      </Subtitle>
 
       <Slots>
         {images.map((img, i) => (
@@ -189,18 +224,32 @@ function App() {
       </Slots>
 
       <Button disabled={!allFilled || loading} onClick={combine}>
-        {loading ? "Combining…" : "Combine Photos"}
+        {loading ? "Creating 3 styles…" : "Combine Photos"}
       </Button>
 
       {error && <ErrorMsg>{error}</ErrorMsg>}
 
-      {result && (
-        <ResultWrap>
-          <img src={result} alt="Combined result" />
-          <DownloadLink href={result} download="ai-photo-booth.jpg">
-            Download image
-          </DownloadLink>
-        </ResultWrap>
+      {results && (
+        <Results>
+          {results.map((r) => (
+            <ResultCard key={r.id}>
+              <ResultLabel>{r.label}</ResultLabel>
+              {r.image ? (
+                <>
+                  <img src={r.image} alt={r.label} />
+                  <DownloadLink
+                    href={r.image}
+                    download={`ai-photo-booth-${r.id}.jpg`}
+                  >
+                    Download
+                  </DownloadLink>
+                </>
+              ) : (
+                <ResultError>{r.error || "Generation failed"}</ResultError>
+              )}
+            </ResultCard>
+          ))}
+        </Results>
       )}
     </Page>
   );

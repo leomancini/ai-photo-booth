@@ -16,12 +16,41 @@ const port = 3139;
 // ---------------------------------------------------------------------------
 const POE_MODEL = "Nano-Banana-2";
 
-// The prompt sent to Nano Banana 2 along with the three uploaded images.
-// Edit this to change how the images get combined.
-const COMBINE_PROMPT =
-  "Combine these three images into a single, cohesive photo. Blend the " +
-  "subjects and scenes together naturally into one unified composition with " +
-  "consistent lighting, color, and perspective. Return a single image.";
+// The styles generated for each set of uploads. Each entry produces one
+// combined image; edit the prompts to change how the images get combined.
+const BASE_PROMPT =
+  "Combine these three images into a single, cohesive image. Blend the " +
+  "subjects and scenes together naturally into one unified composition. " +
+  "Return a single image. ";
+
+const STYLES = [
+  {
+    id: "whimsical",
+    label: "Whimsical",
+    prompt:
+      BASE_PROMPT +
+      "Make it whimsical and fantastical: sparkling fairy dust, glowing " +
+      "magical light, bright saturated colors, dreamlike storybook wonder.",
+  },
+  {
+    id: "classic",
+    label: "Classic Family Photo",
+    prompt:
+      BASE_PROMPT +
+      "Make it look like a classic old-style formal family photograph: " +
+      "vintage studio portrait, sepia or faded tones, formal posed " +
+      "composition, soft studio lighting, aged photo texture.",
+  },
+  {
+    id: "movie-poster",
+    label: "Movie Poster",
+    prompt:
+      BASE_PROMPT +
+      "Make it look like an old-school vintage movie poster: dramatic " +
+      "painted illustration style, bold title typography, retro color " +
+      "palette, cinematic composition with billing block at the bottom.",
+  },
+];
 
 // Max dimension the uploaded images are resized to before sending (keeps the
 // request payload reasonable and improves reliability).
@@ -43,8 +72,51 @@ app.use(express.json());
 app.use(express.static(join(__dirname, "dist")));
 
 // ---------------------------------------------------------------------------
-// Combine three images into one via Nano Banana 2 on the Poe API
+// Combine three images via Nano Banana 2 on the Poe API
 // ---------------------------------------------------------------------------
+async function generateStyledImage(prompt, imageContent) {
+  // Call Poe (OpenAI-compatible) with retries.
+  let response;
+  for (let retry = 0; retry < 3; retry++) {
+    try {
+      const poeRes = await fetch("https://api.poe.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.POE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: POE_MODEL,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: prompt }, ...imageContent],
+            },
+          ],
+          stream: false,
+        }),
+      });
+      response = await poeRes.json();
+      break;
+    } catch (e) {
+      if (retry < 2) await new Promise((r) => setTimeout(r, 3000));
+      else throw e;
+    }
+  }
+
+  const content = response?.choices?.[0]?.message?.content || "";
+  const urlMatch = content.match(/https:\/\/[^\s")]+poecdn\.net\/[^\s")]+/);
+  if (!urlMatch) {
+    console.warn("[combine] No image URL in Poe response:", content.slice(0, 500));
+    throw new Error("No image returned by the model");
+  }
+
+  const imgRes = await fetch(urlMatch[0]);
+  if (!imgRes.ok) throw new Error("Failed to download the combined image");
+  const resultBuf = Buffer.from(await imgRes.arrayBuffer());
+  return `data:image/jpeg;base64,${resultBuf.toString("base64")}`;
+}
+
 app.post("/api/combine", upload.array("images", 3), async (req, res) => {
   if (!process.env.POE_API_KEY) {
     return res.status(500).json({ error: "POE_API_KEY is not configured" });
@@ -72,50 +144,23 @@ app.post("/api/combine", upload.array("images", 3), async (req, res) => {
       })
     );
 
-    // Call Poe (OpenAI-compatible) with retries.
-    let response;
-    for (let retry = 0; retry < 3; retry++) {
-      try {
-        const poeRes = await fetch("https://api.poe.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.POE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: POE_MODEL,
-            messages: [
-              {
-                role: "user",
-                content: [{ type: "text", text: COMBINE_PROMPT }, ...imageContent],
-              },
-            ],
-            stream: false,
-          }),
-        });
-        response = await poeRes.json();
-        break;
-      } catch (e) {
-        if (retry < 2) await new Promise((r) => setTimeout(r, 3000));
-        else throw e;
-      }
+    // Generate all styles in parallel; tolerate individual failures.
+    const settled = await Promise.allSettled(
+      STYLES.map((style) => generateStyledImage(style.prompt, imageContent))
+    );
+
+    const results = STYLES.map((style, i) => ({
+      id: style.id,
+      label: style.label,
+      image: settled[i].status === "fulfilled" ? settled[i].value : null,
+      error: settled[i].status === "rejected" ? settled[i].reason?.message : null,
+    }));
+
+    if (results.every((r) => !r.image)) {
+      return res.status(502).json({ error: "No images returned by the model" });
     }
 
-    const content = response?.choices?.[0]?.message?.content || "";
-    const urlMatch = content.match(/https:\/\/[^\s")]+poecdn\.net\/[^\s")]+/);
-    if (!urlMatch) {
-      console.warn("[combine] No image URL in Poe response:", content.slice(0, 500));
-      return res.status(502).json({ error: "No image returned by the model" });
-    }
-
-    const imgRes = await fetch(urlMatch[0]);
-    if (!imgRes.ok) {
-      return res.status(502).json({ error: "Failed to download the combined image" });
-    }
-    const resultBuf = Buffer.from(await imgRes.arrayBuffer());
-    const resultDataUrl = `data:image/jpeg;base64,${resultBuf.toString("base64")}`;
-
-    res.json({ image: resultDataUrl });
+    res.json({ results });
   } catch (e) {
     console.error("[combine] error:", e);
     res.status(500).json({ error: e.message || "Failed to combine images" });
