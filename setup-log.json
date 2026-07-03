@@ -1,0 +1,10 @@
+{
+  "app_id": "ai-photo-booth",
+  "app_name": "AI Photo Booth",
+  "domain": "https://ai-photo-booth.leo.gd",
+  "host": "localhost",
+  "port": "3139",
+  "author": "leo",
+  "anthropic": false,
+  "created_on": "Fri Jul  3 05:53:22 PM EDT 2026"
+}
