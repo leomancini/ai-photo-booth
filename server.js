@@ -142,7 +142,10 @@ async function generateStyledImage(style, imageContent) {
           "are a style guide ONLY: take the color palette, backgrounds, " +
           "decorative elements, composition style, and mood from them. The " +
           "people, faces, cats, and pets shown in these references are NOT " +
-          "part of your task and must NEVER appear in your output:",
+          "part of your task and must NEVER appear in your output. Some " +
+          "faces in the references are pixelated for privacy — that " +
+          "pixelation is censorship, NOT part of the style; never pixelate " +
+          "or obscure any face in your output:",
       },
       ...refs,
       {
