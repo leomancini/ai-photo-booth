@@ -133,11 +133,13 @@ async function generateStyledImage(style, imageContent) {
       {
         type: "text",
         text:
-          `Next are ${refs.length} STYLE REFERENCE image(s). Use ONLY their ` +
-          "aesthetic: color palette, backgrounds, decorative elements, " +
-          "composition style, and mood. CRITICAL: the people, cats, animals, " +
-          "and objects shown in these reference images are NOT part of the " +
-          "output. Do not include any subject from the references:",
+          `Next are ${refs.length} STYLE REFERENCE image(s). Use ONLY the ` +
+          "STYLE of these reference images: color palette, backgrounds, " +
+          "decorative elements, composition style, and mood. DO NOT USE ANY " +
+          "of the human faces or cat/pet photos that appear in the " +
+          "reference images. EXCLUSIVELY use the faces and/or pets from the " +
+          "user's 3 input photos above — no face, person, cat, or pet from " +
+          "the reference images may appear in the output:",
       },
       ...refs,
       {
