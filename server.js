@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import sharp from "sharp";
 import "dotenv/config";
+import { existsSync, readdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -21,7 +22,8 @@ const POE_MODEL = "Nano-Banana-2";
 const BASE_PROMPT =
   "Combine these three images into a single, cohesive image. Blend the " +
   "subjects and scenes together naturally into one unified composition. " +
-  "Return a single image. ";
+  "Return a single image in portrait orientation with a 2:3 aspect ratio " +
+  "(like a 4x6 photo print, taller than wide). ";
 
 const STYLES = [
   {
@@ -56,6 +58,42 @@ const STYLES = [
 // request payload reasonable and improves reliability).
 const MAX_DIMENSION = 1536;
 
+// Style reference examples: drop images into style-refs/{style-id}/ and they
+// get sent along with that style's request as visual examples to match.
+const STYLE_REFS_DIR = join(__dirname, "style-refs");
+const REF_MAX_DIMENSION = 1024;
+
+async function loadStyleRefs(styleId) {
+  const dir = join(STYLE_REFS_DIR, styleId);
+  if (!existsSync(dir)) return [];
+  const files = readdirSync(dir)
+    .filter((f) => /\.(jpe?g|png|webp|gif)$/i.test(f))
+    .sort();
+  return Promise.all(
+    files.map(async (f) => {
+      const buf = await sharp(join(dir, f))
+        .rotate()
+        .resize(REF_MAX_DIMENSION, REF_MAX_DIMENSION, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      return {
+        type: "image_url",
+        image_url: { url: `data:image/jpeg;base64,${buf.toString("base64")}` },
+      };
+    })
+  );
+}
+
+for (const style of STYLES) {
+  style.refs = await loadStyleRefs(style.id);
+  if (style.refs.length) {
+    console.log(`Loaded ${style.refs.length} style reference(s) for "${style.id}"`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -74,7 +112,35 @@ app.use(express.static(join(__dirname, "dist")));
 // ---------------------------------------------------------------------------
 // Combine three images via Nano Banana 2 on the Poe API
 // ---------------------------------------------------------------------------
-async function generateStyledImage(prompt, imageContent) {
+async function generateStyledImage(style, imageContent) {
+  const refs = style.refs || [];
+  let content;
+  if (refs.length) {
+    // Interleave text labels so the model can't confuse the subject photos
+    // with the style examples.
+    content = [
+      {
+        type: "text",
+        text:
+          style.prompt +
+          " Here are the 3 photos to combine — every subject in the final " +
+          "image must come from these 3 photos:",
+      },
+      ...imageContent,
+      {
+        type: "text",
+        text:
+          `Next are ${refs.length} STYLE REFERENCE image(s). Match their ` +
+          "aesthetic, composition style, color palette, and overall look, " +
+          "but do NOT copy their content — no people, animals, or objects " +
+          "from these references may appear in the final image:",
+      },
+      ...refs,
+    ];
+  } else {
+    content = [{ type: "text", text: style.prompt }, ...imageContent];
+  }
+
   // Call Poe (OpenAI-compatible) with retries.
   let response;
   for (let retry = 0; retry < 3; retry++) {
@@ -87,12 +153,7 @@ async function generateStyledImage(prompt, imageContent) {
         },
         body: JSON.stringify({
           model: POE_MODEL,
-          messages: [
-            {
-              role: "user",
-              content: [{ type: "text", text: prompt }, ...imageContent],
-            },
-          ],
+          messages: [{ role: "user", content }],
           stream: false,
         }),
       });
@@ -104,10 +165,10 @@ async function generateStyledImage(prompt, imageContent) {
     }
   }
 
-  const content = response?.choices?.[0]?.message?.content || "";
-  const urlMatch = content.match(/https:\/\/[^\s")]+poecdn\.net\/[^\s")]+/);
+  const responseText = response?.choices?.[0]?.message?.content || "";
+  const urlMatch = responseText.match(/https:\/\/[^\s")]+poecdn\.net\/[^\s")]+/);
   if (!urlMatch) {
-    console.warn("[combine] No image URL in Poe response:", content.slice(0, 500));
+    console.warn("[combine] No image URL in Poe response:", responseText.slice(0, 500));
     throw new Error("No image returned by the model");
   }
 
@@ -117,9 +178,21 @@ async function generateStyledImage(prompt, imageContent) {
   return `data:image/jpeg;base64,${resultBuf.toString("base64")}`;
 }
 
+// List the available styles so the client can render placeholders.
+app.get("/api/styles", (req, res) => {
+  res.json({ styles: STYLES.map(({ id, label }) => ({ id, label })) });
+});
+
+// Generate one style per request; the client fires one request per style and
+// shows each result as soon as it's ready.
 app.post("/api/combine", upload.array("images", 3), async (req, res) => {
   if (!process.env.POE_API_KEY) {
     return res.status(500).json({ error: "POE_API_KEY is not configured" });
+  }
+
+  const style = STYLES.find((s) => s.id === req.body.style);
+  if (!style) {
+    return res.status(400).json({ error: "Unknown style" });
   }
 
   const files = req.files || [];
@@ -144,25 +217,10 @@ app.post("/api/combine", upload.array("images", 3), async (req, res) => {
       })
     );
 
-    // Generate all styles in parallel; tolerate individual failures.
-    const settled = await Promise.allSettled(
-      STYLES.map((style) => generateStyledImage(style.prompt, imageContent))
-    );
-
-    const results = STYLES.map((style, i) => ({
-      id: style.id,
-      label: style.label,
-      image: settled[i].status === "fulfilled" ? settled[i].value : null,
-      error: settled[i].status === "rejected" ? settled[i].reason?.message : null,
-    }));
-
-    if (results.every((r) => !r.image)) {
-      return res.status(502).json({ error: "No images returned by the model" });
-    }
-
-    res.json({ results });
+    const image = await generateStyledImage(style, imageContent);
+    res.json({ id: style.id, label: style.label, image });
   } catch (e) {
-    console.error("[combine] error:", e);
+    console.error(`[combine:${style.id}] error:`, e);
     res.status(500).json({ error: e.message || "Failed to combine images" });
   }
 });

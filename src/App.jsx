@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 const Page = styled.div`
@@ -135,7 +135,7 @@ const ResultLabel = styled.h3`
 
 const ResultError = styled.div`
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 2 / 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -146,6 +146,29 @@ const ResultError = styled.div`
   padding: 16px;
   box-sizing: border-box;
   text-align: center;
+`;
+
+const ResultPending = styled.div`
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #1a1a1f;
+  color: #71717a;
+  font-size: 14px;
+  animation: pulse 1.6s ease-in-out infinite;
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
 `;
 
 const DownloadLink = styled.a`
@@ -161,11 +184,19 @@ const DownloadLink = styled.a`
 
 function App() {
   const [images, setImages] = useState([null, null, null]);
+  const [styles, setStyles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const [dragIndex, setDragIndex] = useState(null);
   const inputs = [useRef(null), useRef(null), useRef(null)];
+
+  useEffect(() => {
+    fetch("/api/styles")
+      .then((r) => r.json())
+      .then((d) => setStyles(d.styles || []))
+      .catch(() => {});
+  }, []);
 
   const setImage = (i, file) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -197,22 +228,37 @@ function App() {
   const allFilled = images.every(Boolean);
 
   const combine = async () => {
-    if (!allFilled || loading) return;
+    if (!allFilled || loading || !styles.length) return;
     setLoading(true);
     setError(null);
-    setResults(null);
-    try {
-      const form = new FormData();
-      images.forEach((img) => form.append("images", img.file));
-      const res = await fetch("/api/combine", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Something went wrong");
-      setResults(data.results);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    setResults(styles.map((s) => ({ ...s, status: "pending" })));
+
+    // One request per style, all in flight at once; each card fills in as
+    // soon as its style finishes generating.
+    await Promise.all(
+      styles.map(async (s) => {
+        try {
+          const form = new FormData();
+          images.forEach((img) => form.append("images", img.file));
+          form.append("style", s.id);
+          const res = await fetch("/api/combine", { method: "POST", body: form });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Generation failed");
+          setResults((prev) =>
+            prev.map((r) =>
+              r.id === s.id ? { ...r, status: "done", image: data.image } : r
+            )
+          );
+        } catch (e) {
+          setResults((prev) =>
+            prev.map((r) =>
+              r.id === s.id ? { ...r, status: "error", error: e.message } : r
+            )
+          );
+        }
+      })
+    );
+    setLoading(false);
   };
 
   return (
@@ -261,7 +307,9 @@ function App() {
           {results.map((r) => (
             <ResultCard key={r.id}>
               <ResultLabel>{r.label}</ResultLabel>
-              {r.image ? (
+              {r.status === "pending" ? (
+                <ResultPending>Creating…</ResultPending>
+              ) : r.status === "done" ? (
                 <>
                   <img src={r.image} alt={r.label} />
                   <DownloadLink
