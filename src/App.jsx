@@ -1,6 +1,34 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
+// Downscale and re-encode an image in the browser so uploads are small
+// (a 10MB phone photo becomes a few hundred KB). Falls back to the original
+// file if the browser can't decode it.
+const MAX_UPLOAD_DIMENSION = 1536;
+
+async function compressImage(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(
+      1,
+      MAX_UPLOAD_DIMENSION / Math.max(bitmap.width, bitmap.height)
+    );
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
+    );
+    return blob || file;
+  } catch {
+    return file;
+  }
+}
+
 const Page = styled.div`
   min-height: 100vh;
   display: flex;
@@ -198,11 +226,12 @@ function App() {
       .catch(() => {});
   }, []);
 
-  const setImage = (i, file) => {
+  const setImage = async (i, file) => {
     if (!file || !file.type.startsWith("image/")) return;
+    const compressed = await compressImage(file);
     setImages((prev) => {
       const next = [...prev];
-      next[i] = { file, url: URL.createObjectURL(file) };
+      next[i] = { file: compressed, url: URL.createObjectURL(compressed) };
       return next;
     });
     setError(null);
@@ -231,6 +260,23 @@ function App() {
     if (!allFilled || loading || !styles.length) return;
     setLoading(true);
     setError(null);
+    setResults(null);
+
+    // Upload the 3 photos once; the style requests reuse them by ID.
+    let uploadId;
+    try {
+      const form = new FormData();
+      images.forEach((img, i) => form.append("images", img.file, `photo-${i}.jpg`));
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      uploadId = data.uploadId;
+    } catch (e) {
+      setError(e.message);
+      setLoading(false);
+      return;
+    }
+
     setResults(styles.map((s) => ({ ...s, status: "pending" })));
 
     // One request per style, all in flight at once; each card fills in as
@@ -238,10 +284,11 @@ function App() {
     await Promise.all(
       styles.map(async (s) => {
         try {
-          const form = new FormData();
-          images.forEach((img) => form.append("images", img.file));
-          form.append("style", s.id);
-          const res = await fetch("/api/combine", { method: "POST", body: form });
+          const res = await fetch("/api/combine", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadId, style: s.id }),
+          });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Generation failed");
           setResults((prev) =>

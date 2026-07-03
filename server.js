@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import sharp from "sharp";
 import "dotenv/config";
+import { randomUUID } from "crypto";
 import { existsSync, readdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -206,18 +207,19 @@ app.get("/api/styles", (req, res) => {
   res.json({ styles: STYLES.map(({ id, label }) => ({ id, label })) });
 });
 
-// Generate one style per request; the client fires one request per style and
-// shows each result as soon as it's ready.
-app.post("/api/combine", upload.array("images", 3), async (req, res) => {
-  if (!process.env.POE_API_KEY) {
-    return res.status(500).json({ error: "POE_API_KEY is not configured" });
+// Processed uploads are cached in memory so the images are uploaded once and
+// reused across all style requests. Entries expire after 15 minutes.
+const uploadStore = new Map();
+const UPLOAD_TTL_MS = 15 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, entry] of uploadStore) {
+    if (now - entry.createdAt > UPLOAD_TTL_MS) uploadStore.delete(id);
   }
+}, 60 * 1000).unref();
 
-  const style = STYLES.find((s) => s.id === req.body.style);
-  if (!style) {
-    return res.status(400).json({ error: "Unknown style" });
-  }
-
+// Upload the 3 photos once; returns an ID the style requests reuse.
+app.post("/api/upload", upload.array("images", 3), async (req, res) => {
   const files = req.files || [];
   if (files.length !== 3) {
     return res.status(400).json({ error: "Please upload exactly three images" });
@@ -240,7 +242,34 @@ app.post("/api/combine", upload.array("images", 3), async (req, res) => {
       })
     );
 
-    const image = await generateStyledImage(style, imageContent);
+    const uploadId = randomUUID();
+    uploadStore.set(uploadId, { imageContent, createdAt: Date.now() });
+    res.json({ uploadId });
+  } catch (e) {
+    console.error("[upload] error:", e);
+    res.status(500).json({ error: e.message || "Failed to process images" });
+  }
+});
+
+// Generate one style per request; the client fires one request per style and
+// shows each result as soon as it's ready.
+app.post("/api/combine", async (req, res) => {
+  if (!process.env.POE_API_KEY) {
+    return res.status(500).json({ error: "POE_API_KEY is not configured" });
+  }
+
+  const style = STYLES.find((s) => s.id === req.body.style);
+  if (!style) {
+    return res.status(400).json({ error: "Unknown style" });
+  }
+
+  const entry = uploadStore.get(req.body.uploadId);
+  if (!entry) {
+    return res.status(410).json({ error: "Upload expired — please try again" });
+  }
+
+  try {
+    const image = await generateStyledImage(style, entry.imageContent);
     res.json({ id: style.id, label: style.label, image });
   } catch (e) {
     console.error(`[combine:${style.id}] error:`, e);
