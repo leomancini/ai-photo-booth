@@ -28,7 +28,9 @@ const BASE_PROMPT =
   "Do not alter facial features, identity, or likeness, even when applying " +
   "a strong artistic style. " +
   "Return a single image in portrait orientation with a 2:3 aspect ratio " +
-  "(like a 4x6 photo print, taller than wide). ";
+  "(like a 4x6 photo print, taller than wide). NEVER add a border, frame, " +
+  "mat, or margin of any kind — the artwork must always be full bleed, " +
+  "extending edge-to-edge on all four sides. ";
 
 const STYLES = [
   {
