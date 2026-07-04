@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { Page, Title, Subtitle, Button, ErrorMsg, compressImage } from "./shared.jsx";
+import { Page, Button, ErrorMsg, compressImage } from "./shared.jsx";
+
+const Centered = styled.div`
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+`;
 
 const Previews = styled.div`
   display: grid;
@@ -50,7 +59,6 @@ const AddButton = styled(Button)`
 `;
 
 const Done = styled.div`
-  margin-top: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -102,7 +110,7 @@ function UploadPage({ sessionId }) {
     setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
   const submit = async () => {
-    if (photos.length < 2 || sending) return;
+    if (photos.length < 1 || sending) return;
     setSending(true);
     setError(null);
     try {
@@ -125,58 +133,60 @@ function UploadPage({ sessionId }) {
   if (sent) {
     return (
       <Page>
-        <Title>AI Photo Booth</Title>
-        <Done>
-          <span>🎉</span>
-          Photos sent!
-          <p>Look at the big screen — your creations are on the way.</p>
-        </Done>
+        <Centered>
+          <Done>
+            <span>🎉</span>
+            Photos sent!
+            <p>Look at the big screen — your creations are on the way.</p>
+          </Done>
+        </Centered>
       </Page>
     );
   }
 
   return (
     <Page>
-      <Title>AI Photo Booth</Title>
-      <Subtitle>Add two or three photos, then hit create.</Subtitle>
+      <Centered>
+        {photos.length > 0 && (
+          <Previews>
+            {photos.map((p, i) => (
+              <Preview key={p.url}>
+                <img src={p.url} alt={`Photo ${i + 1}`} />
+                <Remove onClick={() => removePhoto(i)}>✕</Remove>
+              </Preview>
+            ))}
+          </Previews>
+        )}
 
-      {photos.length > 0 && (
-        <Previews>
-          {photos.map((p, i) => (
-            <Preview key={p.url}>
-              <img src={p.url} alt={`Photo ${i + 1}`} />
-              <Remove onClick={() => removePhoto(i)}>✕</Remove>
-            </Preview>
-          ))}
-        </Previews>
-      )}
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
 
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => {
-          addFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
+        <AddButton
+          disabled={photos.length >= MAX_PHOTOS}
+          onClick={() => input.current?.click()}
+        >
+          {photos.length
+            ? `Add More (${photos.length}/${MAX_PHOTOS})`
+            : "Add Photos"}
+        </AddButton>
 
-      <AddButton
-        disabled={photos.length >= MAX_PHOTOS}
-        onClick={() => input.current?.click()}
-      >
-        {photos.length
-          ? `Add More (${photos.length}/${MAX_PHOTOS})`
-          : "Add Photos"}
-      </AddButton>
+        {photos.length >= 1 && (
+          <Button disabled={sending} onClick={submit}>
+            {sending ? "Sending…" : "Create My Photos"}
+          </Button>
+        )}
 
-      <Button disabled={photos.length < 2 || sending} onClick={submit}>
-        {sending ? "Sending…" : "Create My Photos"}
-      </Button>
-
-      {error && <ErrorMsg>{error}</ErrorMsg>}
+        {error && <ErrorMsg>{error}</ErrorMsg>}
+      </Centered>
     </Page>
   );
 }

@@ -159,16 +159,19 @@ async function generateStyledImage(style, imageContent) {
       ref,
       {
         type: "text",
-        text: `Now, here are the ${n} photos of the subjects to combine:`,
+        text:
+          n === 1
+            ? "Now, here is the photo of the subjects:"
+            : `Now, here are the ${n} photos of the subjects to combine:`,
       },
       ...imageContent,
       {
         type: "text",
         text:
           style.prompt +
-          ` Combine the subjects from the ${n} photos above into one ` +
-          "image, using the style reference's palette and patterns for " +
-          "the background and decorations.",
+          ` Use the subjects from the ${n === 1 ? "photo" : `${n} photos`} ` +
+          "above in one image, using the style reference's palette and " +
+          "patterns for the background and decorations.",
       },
     ];
   } else {
@@ -246,8 +249,8 @@ setInterval(() => {
 // Upload the photos once; returns an ID the style requests reuse.
 app.post("/api/upload", requireKey, upload.array("images", 3), async (req, res) => {
   const files = req.files || [];
-  if (files.length < 2 || files.length > 3) {
-    return res.status(400).json({ error: "Please upload 2 or 3 images" });
+  if (files.length < 1 || files.length > 3) {
+    return res.status(400).json({ error: "Please upload 1 to 3 images" });
   }
 
   try {
@@ -409,8 +412,8 @@ app.post("/api/session/:id/photos", upload.array("images", 3), async (req, res) 
   }
 
   const files = req.files || [];
-  if (files.length < 2 || files.length > 3) {
-    return res.status(400).json({ error: "Please upload 2 or 3 images" });
+  if (files.length < 1 || files.length > 3) {
+    return res.status(400).json({ error: "Please upload 1 to 3 images" });
   }
 
   try {

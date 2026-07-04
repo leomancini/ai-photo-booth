@@ -45,16 +45,19 @@ const Arrow = styled.button`
   transition: background 0.15s;
 
   &:hover:enabled {
-    background: #6366f1;
+    background: #fff;
+    color: #000;
   }
 `;
 
 const WaitingWrap = styled.div`
+  flex: 1;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 24px;
-  margin-top: 15vh;
   color: #a1a1aa;
   font-size: 18px;
 `;
@@ -64,7 +67,7 @@ const Spinner = styled.div`
   height: 52px;
   border-radius: 50%;
   border: 4px solid #27272a;
-  border-top-color: #6366f1;
+  border-top-color: #fff;
   animation: spin 0.9s linear infinite;
 
   @keyframes spin {

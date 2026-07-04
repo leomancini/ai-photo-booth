@@ -59,15 +59,15 @@ export const Button = styled.button`
   padding: 14px 32px;
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
-  background: ${(p) => (p.disabled ? "#3f3f46" : "#6366f1")};
+  color: ${(p) => (p.disabled ? "#71717a" : "#000")};
+  background: ${(p) => (p.disabled ? "#3f3f46" : "#fff")};
   border: none;
   border-radius: 999px;
   cursor: ${(p) => (p.disabled ? "not-allowed" : "pointer")};
   transition: background 0.15s;
 
   &:hover:enabled {
-    background: #4f46e5;
+    background: #d4d4d8;
   }
 `;
 
@@ -93,10 +93,10 @@ const Slot = styled.button`
   position: relative;
   aspect-ratio: 1;
   border: 2px dashed
-    ${(p) => (p.$dragging ? "#6366f1" : p.$filled ? "transparent" : "#3f3f46")};
+    ${(p) => (p.$dragging ? "#fff" : p.$filled ? "transparent" : "#3f3f46")};
   border-radius: 16px;
   background: ${(p) =>
-    p.$dragging ? "#26263a" : p.$filled ? "#000" : "#1a1a1f"};
+    p.$dragging ? "#27272a" : p.$filled ? "#000" : "#1a1a1f"};
   color: #71717a;
   font-size: 14px;
   cursor: pointer;
@@ -104,7 +104,7 @@ const Slot = styled.button`
   transition: border-color 0.15s, background 0.15s;
 
   &:hover {
-    border-color: ${(p) => (p.$filled ? "transparent" : "#6366f1")};
+    border-color: ${(p) => (p.$filled ? "transparent" : "#a1a1aa")};
     color: #a1a1aa;
   }
 
@@ -191,5 +191,5 @@ export function usePhotos() {
   };
 
   const filled = images.filter(Boolean);
-  return { images, setImage, filled, canCombine: filled.length >= 2 };
+  return { images, setImage, filled, canCombine: filled.length >= 1 };
 }

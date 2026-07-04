@@ -84,7 +84,7 @@ const ResultPending = styled.div`
 
 const DownloadLink = styled.a`
   margin-top: 12px;
-  color: #a5b4fc;
+  color: #d4d4d8;
   font-size: 14px;
   text-decoration: none;
 
