@@ -40,8 +40,13 @@ const STYLES = [
     label: "Whimsical",
     prompt:
       BASE_PROMPT +
-      "Make it whimsical and fantastical: sparkling fairy dust, glowing " +
-      "magical light, bright saturated colors, dreamlike storybook wonder.",
+      "Make it whimsical, fantastical, and MAXIMALIST — fill every corner " +
+      "of the image with magical elements: shooting stars, rainbows, " +
+      "clouds of glittering fairy dust, sparkles, glowing orbs, bubbles, " +
+      "hearts, moons, butterflies, flowers, and swirling ribbons of " +
+      "magical light. Bright saturated colors, dreamlike storybook " +
+      "wonder, dense joyful decoration everywhere — more is more; no " +
+      "empty space.",
   },
   {
     id: "classic",
