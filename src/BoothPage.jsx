@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import QRCode from "qrcode";
-import { Page, Title, Subtitle, Button } from "./shared.jsx";
+import { Page, Subtitle, Button } from "./shared.jsx";
 
 const QRImage = styled.img`
   width: min(420px, 80vw);
@@ -50,6 +50,31 @@ const Arrow = styled.button`
   }
 `;
 
+const WaitingWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin-top: 15vh;
+  color: #a1a1aa;
+  font-size: 18px;
+`;
+
+const Spinner = styled.div`
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 4px solid #27272a;
+  border-top-color: #6366f1;
+  animation: spin 0.9s linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
 const Creating = styled.div`
   width: min(420px, 80vw);
   aspect-ratio: 2 / 3;
@@ -71,12 +96,6 @@ const Creating = styled.div`
       opacity: 0.45;
     }
   }
-`;
-
-const Counter = styled.p`
-  margin-top: 18px;
-  color: #a1a1aa;
-  font-size: 15px;
 `;
 
 function BoothPage() {
@@ -102,22 +121,36 @@ function BoothPage() {
     startSession();
   }, [startSession]);
 
-  // Poll the session while it exists.
+  // Live session updates over WebSocket, with auto-reconnect.
   useEffect(() => {
     if (!sessionId) return;
-    const t = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/session/${sessionId}`);
-        if (res.ok) setSession(await res.json());
-      } catch {}
-    }, 2000);
-    return () => clearInterval(t);
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    let socket;
+    let closed = false;
+    const connect = () => {
+      socket = new WebSocket(
+        `${proto}://${window.location.host}/ws?session=${sessionId}`
+      );
+      socket.onmessage = (e) => {
+        try {
+          setSession(JSON.parse(e.data));
+        } catch {}
+      };
+      socket.onclose = () => {
+        if (!closed) setTimeout(connect, 1500);
+      };
+    };
+    connect();
+    return () => {
+      closed = true;
+      socket?.close();
+    };
   }, [sessionId]);
 
   const ready = session?.results?.filter((r) => r.status === "done") || [];
-  const pendingCount =
-    session?.results?.filter((r) => r.status === "pending").length || 0;
-  const showViewer = session && session.status !== "waiting";
+  const scanned = session?.status === "scanned";
+  const showViewer =
+    session && session.status !== "waiting" && session.status !== "scanned";
 
   // Keep the index valid as results stream in.
   useEffect(() => {
@@ -142,8 +175,12 @@ function BoothPage() {
 
   return (
     <Page>
-      <Title>AI Photo Booth</Title>
-      {!showViewer ? (
+      {scanned ? (
+        <WaitingWrap>
+          <Spinner />
+          Waiting for photos…
+        </WaitingWrap>
+      ) : !showViewer ? (
         <>
           <Subtitle>Scan with your phone to add your photos.</Subtitle>
           {qr && (
@@ -155,9 +192,6 @@ function BoothPage() {
         </>
       ) : (
         <>
-          <Subtitle>
-            {current ? current.label : "Hold tight — creating your photos…"}
-          </Subtitle>
           <Viewer>
             <Arrow onClick={prev} disabled={ready.length < 2}>
               ‹
@@ -174,12 +208,6 @@ function BoothPage() {
               ›
             </Arrow>
           </Viewer>
-          <Counter>
-            {ready.length
-              ? `${index + 1} / ${ready.length}` +
-                (pendingCount ? ` — ${pendingCount} more on the way…` : "")
-              : "This takes about a minute"}
-          </Counter>
           <Button onClick={startSession}>Start Over</Button>
         </>
       )}

@@ -36,7 +36,7 @@ export const Page = styled.div`
   align-items: center;
   padding: 48px 20px 80px;
   box-sizing: border-box;
-  background: #0f0f12;
+  background: #000;
   color: #f4f4f5;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 `;

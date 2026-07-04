@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   Page,
@@ -35,6 +35,11 @@ function UploadPage({ sessionId }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
+
+  // Tell the kiosk the QR code was scanned.
+  useEffect(() => {
+    fetch(`/api/session/${sessionId}/scanned`, { method: "POST" }).catch(() => {});
+  }, [sessionId]);
 
   const submit = async () => {
     if (!canCombine || sending) return;

@@ -211,10 +211,11 @@ function HomePage() {
 
 function App() {
   const path = window.location.pathname;
-  if (path.startsWith("/booth")) return <BoothPage />;
+  if (path.startsWith("/debug")) return <HomePage />;
   const uploadMatch = path.match(/^\/upload\/([\w-]+)/);
   if (uploadMatch) return <UploadPage sessionId={uploadMatch[1]} />;
-  return <HomePage />;
+  // The booth kiosk is the main page (also reachable at /booth).
+  return <BoothPage />;
 }
 
 export default App;

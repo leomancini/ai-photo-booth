@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import sharp from "sharp";
+import { WebSocketServer } from "ws";
 import "dotenv/config";
 import { randomUUID } from "crypto";
 import { existsSync, readdirSync } from "fs";
@@ -312,6 +313,34 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
+// WebSocket subscribers per session; the kiosk gets pushed a session
+// snapshot on connect and whenever the session changes.
+const sessionSockets = new Map();
+
+function sessionSnapshot(s) {
+  return {
+    status: s.status,
+    results: s.results.map(({ id, label, status, error }) => ({
+      id,
+      label,
+      status,
+      error,
+    })),
+  };
+}
+
+function broadcastSession(sessionId) {
+  const s = sessions.get(sessionId);
+  const sockets = sessionSockets.get(sessionId);
+  if (!s || !sockets) return;
+  const msg = JSON.stringify(sessionSnapshot(s));
+  for (const socket of sockets) {
+    try {
+      socket.send(msg);
+    } catch {}
+  }
+}
+
 app.post("/api/session", (req, res) => {
   // A new session immediately frees all previous sessions (and their
   // generated images) — only one booth session is active at a time.
@@ -339,6 +368,18 @@ app.get("/api/session/:id", (req, res) => {
       error,
     })),
   });
+});
+
+// The phone pings this when the upload page loads so the kiosk knows the
+// QR code was scanned.
+app.post("/api/session/:id/scanned", (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s) return res.status(404).json({ error: "Session not found" });
+  if (s.status === "waiting") {
+    s.status = "scanned";
+    broadcastSession(req.params.id);
+  }
+  res.json({ ok: true });
 });
 
 app.get("/api/session/:id/image/:styleId", (req, res) => {
@@ -373,10 +414,12 @@ app.post("/api/session/:id/photos", upload.array("images", 3), async (req, res) 
   try {
     const imageContent = await Promise.all(files.map(normalizeUpload));
 
+    const sessionId = req.params.id;
     s.status = "generating";
     s.results = STYLES.map(({ id, label }) => ({ id, label, status: "pending" }));
     s.images = new Map();
     res.json({ ok: true });
+    broadcastSession(sessionId);
 
     Promise.allSettled(
       STYLES.map(async (style) => {
@@ -390,9 +433,11 @@ app.post("/api/session/:id/photos", upload.array("images", 3), async (req, res) 
           entry.status = "error";
           entry.error = e.message || "Generation failed";
         }
+        broadcastSession(sessionId);
       })
     ).then(() => {
       s.status = "done";
+      broadcastSession(sessionId);
     });
   } catch (e) {
     console.error("[session photos] error:", e);
@@ -405,6 +450,26 @@ app.get("*", (req, res) => {
   res.sendFile(join(__dirname, "dist", "index.html"));
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
+});
+
+// Kiosk clients connect to /ws?session=<id> for live session updates.
+const wss = new WebSocketServer({ server, path: "/ws" });
+wss.on("connection", (socket, req) => {
+  const url = new URL(req.url, "http://localhost");
+  const sessionId = url.searchParams.get("session");
+  if (!sessionId) return socket.close();
+
+  let sockets = sessionSockets.get(sessionId);
+  if (!sockets) sessionSockets.set(sessionId, (sockets = new Set()));
+  sockets.add(socket);
+
+  socket.on("close", () => {
+    sockets.delete(socket);
+    if (!sockets.size) sessionSockets.delete(sessionId);
+  });
+
+  const s = sessions.get(sessionId);
+  if (s) socket.send(JSON.stringify(sessionSnapshot(s)));
 });
