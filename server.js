@@ -24,11 +24,13 @@ const POE_MODEL = "Nano-Banana-2";
 const BASE_PROMPT =
   "Combine these images into a single, cohesive image. Blend the " +
   "subjects and scenes together naturally into one unified composition. " +
-  "IMPORTANT: DO NOT change the faces from the user input photos! Render " +
-  "every person's face faithfully — each face must stay accurate, " +
-  "recognizable, and true to how it appears in the input photos. Do not " +
-  "alter facial features, identity, or likeness, even when applying a " +
-  "strong artistic style. " +
+  "IMPORTANT: DO NOT change the faces from the user input photos! WE DO " +
+  "NOT MODIFY PEOPLE'S FACES!!! Every face must be reproduced EXACTLY as " +
+  "it appears in the input photos — accurate, recognizable, unaltered. " +
+  "Do not beautify, stylize, age, de-age, or change facial features, " +
+  "identity, or likeness in ANY way, even when applying a strong artistic " +
+  "style to everything else in the image. The faces are sacred: keep them " +
+  "photorealistic and identical to the input photos. " +
   "Return a single image in portrait orientation with a 2:3 aspect ratio " +
   "(like a 4x6 photo print, taller than wide). NEVER add a border, frame, " +
   "mat, or margin of any kind — the artwork must always be full bleed, " +
