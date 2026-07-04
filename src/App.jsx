@@ -93,6 +93,9 @@ const DownloadLink = styled.a`
   }
 `;
 
+// Kiosk API key, provided as ?key=... in the URL.
+const KEY = new URLSearchParams(window.location.search).get("key") || "";
+
 function HomePage() {
   const { images, setImage, filled, canCombine } = usePhotos();
   const [styles, setStyles] = useState([]);
@@ -101,7 +104,7 @@ function HomePage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/api/styles")
+    fetch(`/api/styles?key=${encodeURIComponent(KEY)}`)
       .then((r) => r.json())
       .then((d) => setStyles(d.styles || []))
       .catch(() => {});
@@ -118,7 +121,10 @@ function HomePage() {
     try {
       const form = new FormData();
       filled.forEach((img, i) => form.append("images", img.file, `photo-${i}.jpg`));
-      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const res = await fetch(`/api/upload?key=${encodeURIComponent(KEY)}`, {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
       uploadId = data.uploadId;
@@ -135,7 +141,7 @@ function HomePage() {
     await Promise.all(
       styles.map(async (s) => {
         try {
-          const res = await fetch("/api/combine", {
+          const res = await fetch(`/api/combine?key=${encodeURIComponent(KEY)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uploadId, style: s.id }),

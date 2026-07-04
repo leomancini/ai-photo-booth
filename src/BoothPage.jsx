@@ -95,18 +95,28 @@ const Creating = styled.div`
   }
 `;
 
+// Kiosk API key, provided as ?key=... in the booth URL.
+const KEY = new URLSearchParams(window.location.search).get("key") || "";
+
 function BoothPage() {
   const [sessionId, setSessionId] = useState(null);
   const [qr, setQr] = useState(null);
   const [session, setSession] = useState(null);
   const [index, setIndex] = useState(0);
+  const [authError, setAuthError] = useState(false);
 
   const startSession = useCallback(async () => {
     setSession(null);
     setIndex(0);
     setQr(null);
     try {
-      const res = await fetch("/api/session", { method: "POST" });
+      const res = await fetch(`/api/session?key=${encodeURIComponent(KEY)}`, {
+        method: "POST",
+      });
+      if (res.status === 401 || res.status === 500) {
+        setAuthError(true);
+        return;
+      }
       const data = await res.json();
       setSessionId(data.sessionId);
       const url = `${window.location.origin}/u/${data.sessionId}`;
@@ -133,7 +143,7 @@ function BoothPage() {
     let closed = false;
     const connect = () => {
       socket = new WebSocket(
-        `${proto}://${window.location.host}/ws?session=${sessionId}`
+        `${proto}://${window.location.host}/ws?session=${sessionId}&key=${encodeURIComponent(KEY)}`
       );
       socket.onmessage = (e) => {
         try {
@@ -177,6 +187,14 @@ function BoothPage() {
 
   const current = ready[index];
 
+  if (authError) {
+    return (
+      <Page>
+        <WaitingWrap>Missing or invalid API key.</WaitingWrap>
+      </Page>
+    );
+  }
+
   return (
     <Page>
       {scanned ? (
@@ -196,7 +214,7 @@ function BoothPage() {
             </Arrow>
             {current ? (
               <ViewerImage
-                src={`/api/session/${sessionId}/image/${current.id}`}
+                src={`/api/session/${sessionId}/image/${current.id}?key=${encodeURIComponent(KEY)}`}
                 alt={current.label}
               />
             ) : (

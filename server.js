@@ -123,6 +123,20 @@ const upload = multer({
 app.use(express.json());
 app.use(express.static(join(__dirname, "dist")));
 
+// Kiosk-side endpoints require an API key passed as a ?key= query param.
+// Phone-side endpoints (scanned, photos) stay open: the phone only learns
+// the session ID from the QR code, which is displayed behind this key.
+const BOOTH_API_KEY = process.env.BOOTH_API_KEY;
+function requireKey(req, res, next) {
+  if (!BOOTH_API_KEY) {
+    return res.status(500).json({ error: "BOOTH_API_KEY is not configured" });
+  }
+  if (req.query.key !== BOOTH_API_KEY) {
+    return res.status(401).json({ error: "Invalid API key" });
+  }
+  next();
+}
+
 // ---------------------------------------------------------------------------
 // Combine three images via Nano Banana 2 on the Poe API
 // ---------------------------------------------------------------------------
@@ -214,7 +228,7 @@ async function normalizeUpload(file) {
 }
 
 // List the available styles so the client can render placeholders.
-app.get("/api/styles", (req, res) => {
+app.get("/api/styles", requireKey, (req, res) => {
   res.json({ styles: STYLES.map(({ id, label }) => ({ id, label })) });
 });
 
@@ -230,7 +244,7 @@ setInterval(() => {
 }, 60 * 1000).unref();
 
 // Upload the photos once; returns an ID the style requests reuse.
-app.post("/api/upload", upload.array("images", 3), async (req, res) => {
+app.post("/api/upload", requireKey, upload.array("images", 3), async (req, res) => {
   const files = req.files || [];
   if (files.length < 2 || files.length > 3) {
     return res.status(400).json({ error: "Please upload 2 or 3 images" });
@@ -250,7 +264,7 @@ app.post("/api/upload", upload.array("images", 3), async (req, res) => {
 
 // Generate one style per request; the client fires one request per style and
 // shows each result as soon as it's ready.
-app.post("/api/combine", async (req, res) => {
+app.post("/api/combine", requireKey, async (req, res) => {
   if (!process.env.POE_API_KEY) {
     return res.status(500).json({ error: "POE_API_KEY is not configured" });
   }
@@ -329,7 +343,7 @@ function shortSessionId(len = 6) {
   return id;
 }
 
-app.post("/api/session", (req, res) => {
+app.post("/api/session", requireKey, (req, res) => {
   // A new session immediately frees all previous sessions (and their
   // generated images) — only one booth session is active at a time.
   sessions.clear();
@@ -344,7 +358,7 @@ app.post("/api/session", (req, res) => {
   res.json({ sessionId });
 });
 
-app.get("/api/session/:id", (req, res) => {
+app.get("/api/session/:id", requireKey, (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: "Session not found" });
   res.json({
@@ -370,7 +384,7 @@ app.post("/api/session/:id/scanned", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/session/:id/image/:styleId", (req, res) => {
+app.get("/api/session/:id/image/:styleId", requireKey, (req, res) => {
   const s = sessions.get(req.params.id);
   const buf = s?.images.get(req.params.styleId);
   if (!buf) return res.status(404).end();
@@ -448,6 +462,9 @@ wss.on("connection", (socket, req) => {
   const url = new URL(req.url, "http://localhost");
   const sessionId = url.searchParams.get("session");
   if (!sessionId) return socket.close();
+  if (!BOOTH_API_KEY || url.searchParams.get("key") !== BOOTH_API_KEY) {
+    return socket.close();
+  }
 
   let sockets = sessionSockets.get(sessionId);
   if (!sockets) sessionSockets.set(sessionId, (sockets = new Set()));
