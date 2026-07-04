@@ -9,6 +9,8 @@ const QRWrap = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #a1a1aa;
+  font-size: 18px;
 `;
 
 const QRImage = styled.img`
@@ -190,7 +192,7 @@ function BoothPage() {
   if (authError) {
     return (
       <Page>
-        <WaitingWrap>Missing or invalid API key.</WaitingWrap>
+        <QRWrap>Missing or invalid API key</QRWrap>
       </Page>
     );
   }
