@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import QRCode from "qrcode";
-import { Page, Button } from "./shared.jsx";
+import { Page } from "./shared.jsx";
 
 const QRWrap = styled.div`
   flex: 1;
@@ -17,37 +17,13 @@ const QRImage = styled.img`
   width: min(420px, 80vw);
 `;
 
-const Viewer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  width: 100%;
-  max-width: 900px;
-  justify-content: center;
-`;
-
-const ViewerImage = styled.img`
-  max-height: 70vh;
-  max-width: min(60vw, 560px);
-  border-radius: 16px;
-`;
-
-const Arrow = styled.button`
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: ${(p) => (p.disabled ? "#1a1a1f" : "#27272a")};
-  color: ${(p) => (p.disabled ? "#3f3f46" : "#f4f4f5")};
-  font-size: 26px;
-  cursor: ${(p) => (p.disabled ? "default" : "pointer")};
-  flex-shrink: 0;
-  transition: background 0.15s;
-
-  &:hover:enabled {
-    background: #fff;
-    color: #000;
-  }
+const FullImage = styled.img`
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  object-fit: contain;
+  background: #000;
 `;
 
 const WaitingWrap = styled.div`
@@ -73,29 +49,6 @@ const Spinner = styled.div`
   @keyframes spin {
     to {
       transform: rotate(360deg);
-    }
-  }
-`;
-
-const Creating = styled.div`
-  width: min(420px, 80vw);
-  aspect-ratio: 2 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  background: #1a1a1f;
-  color: #a1a1aa;
-  font-size: 17px;
-  animation: pulse 1.6s ease-in-out infinite;
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.45;
     }
   }
 `;
@@ -176,19 +129,27 @@ function BoothPage() {
     if (index >= ready.length) setIndex(Math.max(0, ready.length - 1));
   }, [ready.length, index]);
 
-  const prev = () => setIndex((i) => (i - 1 + ready.length) % ready.length);
-  const next = () => setIndex((i) => (i + 1) % ready.length);
-
-  // Left/right arrow keys cycle too.
+  // Keyboard controls: digits jump straight to an image (1 = first, 2 =
+  // second, … works for any number of styles), arrows cycle, Esc starts over.
   useEffect(() => {
     const onKey = (e) => {
+      if (e.key === "Escape") {
+        startSession();
+        return;
+      }
       if (!ready.length) return;
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") {
+        setIndex((i) => (i - 1 + ready.length) % ready.length);
+      } else if (e.key === "ArrowRight") {
+        setIndex((i) => (i + 1) % ready.length);
+      } else {
+        const digit = parseInt(e.key, 10);
+        if (digit >= 1 && digit <= ready.length) setIndex(digit - 1);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ready.length]);
+  }, [ready.length, startSession]);
 
   const current = ready[index];
 
@@ -211,26 +172,16 @@ function BoothPage() {
         <QRWrap>
           {qr && <QRImage src={qr.dataUrl} alt="Scan to upload photos" />}
         </QRWrap>
+      ) : current ? (
+        <FullImage
+          src={`/api/session/${sessionId}/image/${current.id}?key=${encodeURIComponent(KEY)}`}
+          alt={current.label}
+        />
       ) : (
-        <>
-          <Viewer>
-            <Arrow onClick={prev} disabled={ready.length < 2}>
-              ‹
-            </Arrow>
-            {current ? (
-              <ViewerImage
-                src={`/api/session/${sessionId}/image/${current.id}?key=${encodeURIComponent(KEY)}`}
-                alt={current.label}
-              />
-            ) : (
-              <Creating>Creating…</Creating>
-            )}
-            <Arrow onClick={next} disabled={ready.length < 2}>
-              ›
-            </Arrow>
-          </Viewer>
-          <Button onClick={startSession}>Start Over</Button>
-        </>
+        <WaitingWrap>
+          <Spinner />
+          Creating…
+        </WaitingWrap>
       )}
     </Page>
   );
