@@ -18,12 +18,23 @@ const QRImage = styled.img`
 `;
 
 const FullImage = styled.img`
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100dvh;
-  object-fit: contain;
   background: #000;
+  ${(p) =>
+    p.$onDevice
+      ? `
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: auto;
+  `
+      : `
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    object-fit: contain;
+  `}
 `;
 
 const WaitingWrap = styled.div`
@@ -54,7 +65,11 @@ const Spinner = styled.div`
 `;
 
 // Kiosk API key, provided as ?key=... in the booth URL.
-const KEY = new URLSearchParams(window.location.search).get("key") || "";
+const PARAMS = new URLSearchParams(window.location.search);
+const KEY = PARAMS.get("key") || "";
+// ?onDevice=true — the image fills the width instead of the height
+// (vertical overflow is fine).
+const ON_DEVICE = PARAMS.get("onDevice") === "true";
 
 function BoothPage() {
   const [sessionId, setSessionId] = useState(null);
@@ -92,6 +107,15 @@ function BoothPage() {
   useEffect(() => {
     startSession();
   }, [startSession]);
+
+  // On-device mode: no scrolling, no cursor.
+  useEffect(() => {
+    if (!ON_DEVICE) return;
+    for (const el of [document.documentElement, document.body]) {
+      el.style.overflow = "hidden";
+      el.style.cursor = "none";
+    }
+  }, []);
 
   // Live session updates over WebSocket, with auto-reconnect.
   useEffect(() => {
@@ -174,6 +198,7 @@ function BoothPage() {
         </QRWrap>
       ) : current ? (
         <FullImage
+          $onDevice={ON_DEVICE}
           src={`/api/session/${sessionId}/image/${current.id}?key=${encodeURIComponent(KEY)}`}
           alt={current.label}
         />
