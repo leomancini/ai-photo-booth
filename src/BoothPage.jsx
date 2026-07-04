@@ -57,16 +57,16 @@ const WaitingWrap = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 40px;
   color: #a1a1aa;
-  font-size: 18px;
+  font-size: 32px;
 `;
 
 const Spinner = styled.div`
-  width: 52px;
-  height: 52px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  border: 4px solid #27272a;
+  border: 7px solid #27272a;
   border-top-color: #fff;
   animation: spin 0.9s linear infinite;
 
