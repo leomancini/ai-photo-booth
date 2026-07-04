@@ -59,22 +59,7 @@ const AddButton = styled(Button)`
 `;
 
 const Done = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  font-size: 20px;
-  text-align: center;
-
-  span {
-    font-size: 56px;
-  }
-
-  p {
-    margin: 0;
-    color: #a1a1aa;
-    font-size: 15px;
-  }
+  font-size: 120px;
 `;
 
 const MAX_PHOTOS = 3;
@@ -134,11 +119,7 @@ function UploadPage({ sessionId }) {
     return (
       <Page>
         <Centered>
-          <Done>
-            <span>🎉</span>
-            Photos sent!
-            <p>Look at the big screen — your creations are on the way.</p>
-          </Done>
+          <Done>✅</Done>
         </Centered>
       </Page>
     );
