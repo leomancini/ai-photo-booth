@@ -59,7 +59,7 @@ const AddButton = styled(Button)`
 `;
 
 const Done = styled.div`
-  font-size: 120px;
+  font-size: 84px;
 `;
 
 const MAX_PHOTOS = 3;
