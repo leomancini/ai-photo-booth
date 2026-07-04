@@ -313,6 +313,10 @@ setInterval(() => {
 }, 5 * 60 * 1000).unref();
 
 app.post("/api/session", (req, res) => {
+  // A new session immediately frees all previous sessions (and their
+  // generated images) — only one booth session is active at a time.
+  sessions.clear();
+
   const sessionId = randomUUID();
   sessions.set(sessionId, {
     createdAt: Date.now(),
