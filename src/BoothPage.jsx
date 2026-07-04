@@ -1,21 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 import QRCode from "qrcode";
-import { Page, Subtitle, Button } from "./shared.jsx";
+import { Page, Button } from "./shared.jsx";
+
+const QRWrap = styled.div`
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
 
 const QRImage = styled.img`
   width: min(420px, 80vw);
-  border-radius: 24px;
-  background: #fff;
-  padding: 16px;
-  box-sizing: border-box;
-`;
-
-const UploadUrl = styled.p`
-  margin-top: 20px;
-  color: #52525b;
-  font-size: 13px;
-  word-break: break-all;
 `;
 
 const Viewer = styled.div`
@@ -113,7 +110,14 @@ function BoothPage() {
       const data = await res.json();
       setSessionId(data.sessionId);
       const url = `${window.location.origin}/upload/${data.sessionId}`;
-      setQr({ dataUrl: await QRCode.toDataURL(url, { width: 640, margin: 1 }), url });
+      setQr({
+        dataUrl: await QRCode.toDataURL(url, {
+          width: 640,
+          margin: 1,
+          color: { dark: "#ffffff", light: "#000000" },
+        }),
+        url,
+      });
     } catch {}
   }, []);
 
@@ -181,15 +185,9 @@ function BoothPage() {
           Waiting for photos…
         </WaitingWrap>
       ) : !showViewer ? (
-        <>
-          <Subtitle>Scan with your phone to add your photos.</Subtitle>
-          {qr && (
-            <>
-              <QRImage src={qr.dataUrl} alt="Scan to upload photos" />
-              <UploadUrl>{qr.url}</UploadUrl>
-            </>
-          )}
-        </>
+        <QRWrap>
+          {qr && <QRImage src={qr.dataUrl} alt="Scan to upload photos" />}
+        </QRWrap>
       ) : (
         <>
           <Viewer>
