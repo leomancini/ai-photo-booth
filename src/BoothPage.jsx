@@ -22,9 +22,10 @@ const FullImage = styled.img`
   ${(p) =>
     p.$onDevice
       ? `
-    position: absolute;
-    top: 0;
+    position: fixed;
+    top: 50%;
     left: 0;
+    transform: translateY(-50%);
     width: 100vw;
     height: auto;
   `
