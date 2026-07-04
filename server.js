@@ -215,8 +215,23 @@ async function generateStyledImage(style, imageContent) {
 
   const imgRes = await fetch(urlMatch[0]);
   if (!imgRes.ok) throw new Error("Failed to download the combined image");
-  const resultBuf = Buffer.from(await imgRes.arrayBuffer());
-  return `data:image/jpeg;base64,${resultBuf.toString("base64")}`;
+  return Buffer.from(await imgRes.arrayBuffer());
+}
+
+// Normalize an uploaded file to a compressed JPEG data URL content part.
+async function normalizeUpload(file) {
+  const buf = await sharp(file.buffer)
+    .rotate()
+    .resize(MAX_DIMENSION, MAX_DIMENSION, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 88 })
+    .toBuffer();
+  return {
+    type: "image_url",
+    image_url: { url: `data:image/jpeg;base64,${buf.toString("base64")}` },
+  };
 }
 
 // List the available styles so the client can render placeholders.
@@ -243,21 +258,7 @@ app.post("/api/upload", upload.array("images", 3), async (req, res) => {
   }
 
   try {
-    // Normalize each image to a compressed JPEG data URL.
-    const imageContent = await Promise.all(
-      files.map(async (file) => {
-        const buf = await sharp(file.buffer)
-          .rotate()
-          .resize(MAX_DIMENSION, MAX_DIMENSION, {
-            fit: "inside",
-            withoutEnlargement: true,
-          })
-          .jpeg({ quality: 88 })
-          .toBuffer();
-        const dataUrl = `data:image/jpeg;base64,${buf.toString("base64")}`;
-        return { type: "image_url", image_url: { url: dataUrl } };
-      })
-    );
+    const imageContent = await Promise.all(files.map(normalizeUpload));
 
     const uploadId = randomUUID();
     uploadStore.set(uploadId, { imageContent, createdAt: Date.now() });
@@ -286,11 +287,112 @@ app.post("/api/combine", async (req, res) => {
   }
 
   try {
-    const image = await generateStyledImage(style, entry.imageContent);
-    res.json({ id: style.id, label: style.label, image });
+    const buf = await generateStyledImage(style, entry.imageContent);
+    res.json({
+      id: style.id,
+      label: style.label,
+      image: `data:image/jpeg;base64,${buf.toString("base64")}`,
+    });
   } catch (e) {
     console.error(`[combine:${style.id}] error:`, e);
     res.status(500).json({ error: e.message || "Failed to combine images" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Booth sessions: a kiosk screen (/booth) creates a session and shows a QR
+// code; the phone scans it, uploads photos, and the kiosk polls for results.
+// ---------------------------------------------------------------------------
+const sessions = new Map();
+const SESSION_TTL_MS = 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of sessions) {
+    if (now - s.createdAt > SESSION_TTL_MS) sessions.delete(id);
+  }
+}, 5 * 60 * 1000).unref();
+
+app.post("/api/session", (req, res) => {
+  const sessionId = randomUUID();
+  sessions.set(sessionId, {
+    createdAt: Date.now(),
+    status: "waiting",
+    results: [],
+    images: new Map(),
+  });
+  res.json({ sessionId });
+});
+
+app.get("/api/session/:id", (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s) return res.status(404).json({ error: "Session not found" });
+  res.json({
+    status: s.status,
+    results: s.results.map(({ id, label, status, error }) => ({
+      id,
+      label,
+      status,
+      error,
+    })),
+  });
+});
+
+app.get("/api/session/:id/image/:styleId", (req, res) => {
+  const s = sessions.get(req.params.id);
+  const buf = s?.images.get(req.params.styleId);
+  if (!buf) return res.status(404).end();
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.end(buf);
+});
+
+// The phone posts its photos here; generation runs in the background and the
+// kiosk sees each style appear in the session as it finishes.
+app.post("/api/session/:id/photos", upload.array("images", 3), async (req, res) => {
+  if (!process.env.POE_API_KEY) {
+    return res.status(500).json({ error: "POE_API_KEY is not configured" });
+  }
+
+  const s = sessions.get(req.params.id);
+  if (!s) {
+    return res.status(404).json({ error: "Session not found — rescan the QR code" });
+  }
+  if (s.status === "generating") {
+    return res.status(409).json({ error: "Already creating photos for this session" });
+  }
+
+  const files = req.files || [];
+  if (files.length < 2 || files.length > 3) {
+    return res.status(400).json({ error: "Please upload 2 or 3 images" });
+  }
+
+  try {
+    const imageContent = await Promise.all(files.map(normalizeUpload));
+
+    s.status = "generating";
+    s.results = STYLES.map(({ id, label }) => ({ id, label, status: "pending" }));
+    s.images = new Map();
+    res.json({ ok: true });
+
+    Promise.allSettled(
+      STYLES.map(async (style) => {
+        const entry = s.results.find((r) => r.id === style.id);
+        try {
+          const buf = await generateStyledImage(style, imageContent);
+          s.images.set(style.id, buf);
+          entry.status = "done";
+        } catch (e) {
+          console.error(`[session:${style.id}] error:`, e);
+          entry.status = "error";
+          entry.error = e.message || "Generation failed";
+        }
+      })
+    ).then(() => {
+      s.status = "done";
+    });
+  } catch (e) {
+    console.error("[session photos] error:", e);
+    res.status(500).json({ error: e.message || "Failed to process images" });
   }
 });
 
