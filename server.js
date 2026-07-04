@@ -42,12 +42,6 @@ const STYLES = [
       BASE_PROMPT +
       "Make it whimsical and fantastical: sparkling fairy dust, glowing " +
       "magical light, bright saturated colors, dreamlike storybook wonder.",
-    // Subjects that appear in this style's reference images and must not
-    // leak into the output.
-    forbid:
-      "grey-and-white cats, a woman with long dark hair in a pink-and-blue " +
-      "sweater, a bearded man in a black t-shirt, and a woman with long " +
-      "dark wavy hair",
   },
   {
     id: "classic",
@@ -132,51 +126,30 @@ async function generateStyledImage(style, imageContent) {
   const n = imageContent.length;
   let content;
   if (refs.length) {
-    // Style references go FIRST and the user's photos go LAST (immediately
-    // before the final instruction) — the model treats the most recent
-    // images as the content to work with, which keeps reference subjects
-    // from leaking into the output.
+    // References are pattern/texture images; pick one at random per
+    // generation for variety.
+    const ref = refs[Math.floor(Math.random() * refs.length)];
     content = [
       {
         type: "text",
         text:
-          `First, here are ${refs.length} STYLE REFERENCE image(s). These ` +
-          "are a style guide ONLY: take the color palette, backgrounds, " +
-          "decorative elements, composition style, and mood from them. The " +
-          "people, faces, cats, and pets shown in these references are NOT " +
-          "part of your task and must NEVER appear in your output. Some " +
-          "faces in the references are pixelated for privacy — that " +
-          "pixelation is censorship, NOT part of the style; never pixelate " +
-          "or obscure any face in your output:",
+          "First, here is a STYLE REFERENCE image — a pattern to draw " +
+          "from. Use its colors, patterns, and decorative feel for the " +
+          "background and decorative elements of your output:",
       },
-      ...refs,
+      ref,
       {
         type: "text",
-        text:
-          `Now, here are the ${n} photos of the ACTUAL SUBJECTS. Every ` +
-          "person, face, and pet in your output must come EXCLUSIVELY from " +
-          `these ${n} photos:`,
+        text: `Now, here are the ${n} photos of the subjects to combine:`,
       },
       ...imageContent,
       {
         type: "text",
         text:
           style.prompt +
-          ` Use ONLY the subjects from the ${n} photos directly above — ` +
-          "DO NOT change their faces! Render their faces faithfully, " +
-          "recognizably, and exactly as they appear in those photos. DO " +
-          "NOT USE ANY " +
-          "human face or pet from the style reference images. If the " +
-          "references use repeated cut-out photos of a subject as " +
-          "decorative collage elements, recreate that same collage effect " +
-          `but build the cut-outs from the ${n} subject photos instead. ` +
-          "Copy the references' backgrounds, colors, sparkle, and layout — " +
-          "never their people or pets." +
-          (style.forbid
-            ? ` STRICT RULE: the reference images contain ${style.forbid}. ` +
-              `Absolutely NONE of these may appear anywhere in the output ` +
-              `unless they are also present in the ${n} subject photos.`
-            : ""),
+          ` Combine the subjects from the ${n} photos above into one ` +
+          "image, using the style reference's palette and patterns for " +
+          "the background and decorations.",
       },
     ];
   } else {
