@@ -314,12 +314,22 @@ function broadcastSession(sessionId) {
   }
 }
 
+// Short session IDs keep the QR code simple. Ambiguous characters excluded.
+const SESSION_ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+function shortSessionId(len = 6) {
+  let id = "";
+  for (let i = 0; i < len; i++) {
+    id += SESSION_ID_ALPHABET[Math.floor(Math.random() * SESSION_ID_ALPHABET.length)];
+  }
+  return id;
+}
+
 app.post("/api/session", (req, res) => {
   // A new session immediately frees all previous sessions (and their
   // generated images) — only one booth session is active at a time.
   sessions.clear();
 
-  const sessionId = randomUUID();
+  const sessionId = shortSessionId();
   sessions.set(sessionId, {
     createdAt: Date.now(),
     status: "waiting",

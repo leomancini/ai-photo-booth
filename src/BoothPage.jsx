@@ -109,7 +109,7 @@ function BoothPage() {
       const res = await fetch("/api/session", { method: "POST" });
       const data = await res.json();
       setSessionId(data.sessionId);
-      const url = `${window.location.origin}/upload/${data.sessionId}`;
+      const url = `${window.location.origin}/u/${data.sessionId}`;
       setQr({
         dataUrl: await QRCode.toDataURL(url, {
           width: 640,

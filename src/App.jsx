@@ -212,7 +212,7 @@ function HomePage() {
 function App() {
   const path = window.location.pathname;
   if (path.startsWith("/debug")) return <HomePage />;
-  const uploadMatch = path.match(/^\/upload\/([\w-]+)/);
+  const uploadMatch = path.match(/^\/u(?:pload)?\/([\w-]+)/);
   if (uploadMatch) return <UploadPage sessionId={uploadMatch[1]} />;
   // The booth kiosk is the main page (also reachable at /booth).
   return <BoothPage />;
